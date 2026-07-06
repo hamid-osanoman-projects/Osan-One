@@ -1,0 +1,19 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@layer base {
+  :root {
+    --background: #0B0B0F;
+    --foreground: #FFFFFF;
+  }
+  
+  body {
+    @apply bg-background text-white antialiased selection:bg-primary/30;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-surface backdrop-blur-md border border-white/10 shadow-xl;
+  }
+}
