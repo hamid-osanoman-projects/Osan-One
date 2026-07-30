@@ -1,28 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { PunchRing } from '../components/employee/PunchRing';
 import { LeaveModal } from '../components/employee/LeaveModal';
 import { PipWindow } from '../components/pwa/PipWindow';
 import { CompactWidget } from '../components/employee/CompactWidget';
-import { Calendar, Clock, LogOut } from 'lucide-react';
+import { Calendar, Clock, LogOut, CheckCircle2, History } from 'lucide-react';
 import { getCompanySettings, calculateDistance, type CompanySettings } from '../lib/settings';
 import { supabase } from '../lib/supabase';
-import { getExpectedShiftEnd, evaluateDeparture } from '../lib/attendanceRules';
+import { getExpectedShiftEnd } from '../lib/attendanceRules';
+
+interface WorkSession {
+  id: string;
+  checkIn: Date;
+  checkOut?: Date;
+  durationMs: number;
+}
 
 export function EmployeeDashboard() {
   const { profile, signOut } = useAuth();
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
 
-  // Dummy data for now if profile is null (for UI testing without auth)
   const balances = profile?.leave_balances || { yearly: 30, sick: 14, pregnancy: 0 };
 
-  const [checkInTime, setCheckInTime] = useState<Date | null>(null);
+  // Multi-session punch tracking
+  const [sessions, setSessions] = useState<WorkSession[]>([]);
+  const [firstCheckInTime, setFirstCheckInTime] = useState<Date | null>(null);
+  const [currentSessionStart, setCurrentSessionStart] = useState<Date | null>(null);
+
   const [elapsedTime, setElapsedTime] = useState('00:00');
   const [now, setNow] = useState(new Date());
   const [settings, setSettings] = useState<CompanySettings | null>(null);
 
-  // New States
   const [companyName, setCompanyName] = useState<string>('');
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [breakStartTime, setBreakStartTime] = useState<Date | null>(null);
@@ -32,7 +41,6 @@ export function EmployeeDashboard() {
     if (profile?.company_id) {
       getCompanySettings(profile.company_id).then(setSettings);
 
-      // Fetch company name
       supabase.from('companies').select('name').eq('id', profile.company_id).single()
         .then(({ data }) => {
           if (data) setCompanyName(data.name);
@@ -40,22 +48,21 @@ export function EmployeeDashboard() {
     }
   }, [profile?.company_id]);
 
-  // Update current time every second
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Update elapsed time every second while checked in
+  // Update current active session elapsed time
   useEffect(() => {
-    if (!isCheckedIn || !checkInTime) {
+    if (!isCheckedIn || !currentSessionStart) {
       setElapsedTime('00:00');
       return;
     }
 
     const interval = setInterval(() => {
       const now = new Date();
-      const diffInSeconds = Math.floor((now.getTime() - checkInTime.getTime()) / 1000);
+      const diffInSeconds = Math.floor((now.getTime() - currentSessionStart.getTime()) / 1000);
 
       const hours = Math.floor(diffInSeconds / 3600);
       const minutes = Math.floor((diffInSeconds % 3600) / 60);
@@ -64,12 +71,30 @@ export function EmployeeDashboard() {
       const formattedMinutes = minutes.toString().padStart(2, '0');
 
       setElapsedTime(`${formattedHours}:${formattedMinutes}`);
-    }, 1000); // Update every second for accuracy
+    }, 1000);
 
     return () => clearInterval(interval);
-  }, [isCheckedIn, checkInTime]);
+  }, [isCheckedIn, currentSessionStart]);
 
-  // Update break elapsed time
+  // Cumulative worked milliseconds (Completed sessions + active session)
+  const cumulativeWorkedMs = useMemo(() => {
+    const completedMs = sessions.reduce((sum, s) => sum + s.durationMs, 0);
+    const activeMs = isCheckedIn && currentSessionStart ? (now.getTime() - currentSessionStart.getTime()) : 0;
+    return completedMs + activeMs;
+  }, [sessions, isCheckedIn, currentSessionStart, now]);
+
+  const formattedCumulativeWorked = useMemo(() => {
+    const diffSecs = Math.floor(cumulativeWorkedMs / 1000);
+    const hrs = Math.floor(diffSecs / 3600);
+    const mins = Math.floor((diffSecs % 3600) / 60);
+    const secs = diffSecs % 60;
+    
+    let result = '';
+    if (hrs > 0) result += `${hrs}h `;
+    result += `${mins}m ${secs.toString().padStart(2, '0')}s`;
+    return result;
+  }, [cumulativeWorkedMs]);
+
   useEffect(() => {
     if (!isOnBreak || !breakStartTime) {
       setBreakElapsed('00:00');
@@ -86,27 +111,22 @@ export function EmployeeDashboard() {
   }, [isOnBreak, breakStartTime]);
 
   const handlePunch = async () => {
-    // If checking out, we usually don't strictly require location, but we can check anyway or just let them out.
-    // Let's enforce it for Check In to be safe.
     if (!isCheckedIn && settings) {
       try {
         let isAuthorized = false;
 
-        // 1. FAST CHECK: Network IP
         if (settings.office_ip) {
           try {
             const ipResponse = await fetch('https://api.ipify.org?format=json');
             const ipData = await ipResponse.json();
             if (ipData.ip === settings.office_ip) {
               isAuthorized = true;
-              console.log("Authorized via Office IP Match");
             }
           } catch (e) {
             console.warn("IP Check failed, falling back to GPS", e);
           }
         }
 
-        // 2. FALLBACK CHECK: GPS Location (50m radius)
         if (!isAuthorized && settings.office_latitude && settings.office_longitude) {
           if ('geolocation' in navigator) {
             const position = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -120,13 +140,11 @@ export function EmployeeDashboard() {
               settings.office_longitude
             );
 
-            console.log(`Calculated distance to office: ${Math.round(distance)} meters`);
-
             if (distance <= 50) {
               isAuthorized = true;
             } else {
               alert(`Punch Denied: You are ${Math.round(distance)}m away from the office. You must be within 50m to check in.`);
-              return; // Halt punch
+              return;
             }
           } else {
             alert("Geolocation is not supported by your browser. Please use the Office Wi-Fi.");
@@ -135,29 +153,42 @@ export function EmployeeDashboard() {
         }
 
         if (!isAuthorized && (!settings.office_latitude || !settings.office_longitude)) {
-          // If settings exist but neither IP nor GPS are configured yet, warn and allow (or deny)
           alert("Warning: Office location is not fully configured by HR. Proceeding anyway.");
         }
 
       } catch (error) {
         console.error("Geofencing Error:", error);
         alert("Failed to verify location. Please allow location access.");
-        return; // Halt punch
+        return;
       }
     }
 
-    // In a real app, call Supabase here.
-    console.log(`Punching ${isCheckedIn ? 'out' : 'in'}`);
-
-    // Simulate API call
     await new Promise(r => setTimeout(r, 1000));
 
+    const nowTime = new Date();
+
     if (!isCheckedIn) {
-      setCheckInTime(new Date());
+      // Check in
+      if (!firstCheckInTime) {
+        setFirstCheckInTime(nowTime);
+      }
+      setCurrentSessionStart(nowTime);
+      setIsCheckedIn(true);
     } else {
-      setCheckInTime(null);
+      // Check out
+      if (currentSessionStart) {
+        const sessionMs = nowTime.getTime() - currentSessionStart.getTime();
+        const newSession: WorkSession = {
+          id: Math.random().toString(36).substring(2, 9),
+          checkIn: currentSessionStart,
+          checkOut: nowTime,
+          durationMs: sessionMs
+        };
+        setSessions(prev => [...prev, newSession]);
+      }
+      setCurrentSessionStart(null);
+      setIsCheckedIn(false);
     }
-    setIsCheckedIn(!isCheckedIn);
   };
 
   const handleLeaveSubmit = async (data: any) => {
@@ -167,19 +198,7 @@ export function EmployeeDashboard() {
 
   const [isPipActive, setIsPipActive] = useState(false);
 
-  // Nationality-Based Schedule Check (Basic Client Side)
-  const isOmani = profile?.nationality === 'Omani';
-  const today = new Date().getDay(); // 0 = Sunday, 5 = Friday, 6 = Saturday
-
-  let disabledMessage = null;
-  // Temporarily bypassed weekend lock so you can test it today!
-  /*
-  if (isOmani && (today === 5 || today === 6)) {
-    disabledMessage = "Weekend (Friday/Saturday) - System Locked";
-  } else if (!isOmani && today === 5) {
-    disabledMessage = "Rest Day (Friday) - System Locked";
-  }
-  */
+  const disabledMessage = null;
 
   const handleBreakPunch = () => {
     if (!isOnBreak) {
@@ -238,7 +257,7 @@ export function EmployeeDashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-full w-full p-4">
         {/* Main Panel Clock */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-8">
           <div className="text-5xl md:text-7xl font-bold tracking-tight bg-gradient-to-br from-white to-slate-400 bg-clip-text text-transparent drop-shadow-sm mb-3">
             {formattedTime}
           </div>
@@ -248,33 +267,71 @@ export function EmployeeDashboard() {
           </div>
         </div>
 
+        {/* CUMULATIVE WORKED HOURS TODAY KPI BADGE */}
+        <div className="mb-8 glass px-6 py-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 flex items-center gap-3 shadow-lg shadow-emerald-500/5">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <Clock className="w-5 h-5 animate-pulse" />
+          </div>
+          <div className="flex flex-col text-left">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400/80">Cumulative Worked Hours Today</span>
+            <span className="text-xl font-black text-emerald-400 tracking-tight">{formattedCumulativeWorked}</span>
+          </div>
+        </div>
+
         <PunchRing
           isCheckedIn={isCheckedIn}
           onPunch={handlePunch}
           disabledMessage={disabledMessage}
         />
-        {isCheckedIn && (
-          <div className="mt-8 flex items-center gap-2 text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-6 py-3 rounded-full font-medium shadow-lg shadow-emerald-500/5">
-            <Clock className="w-5 h-5" />
-            <span>Shift Active • Elapsed: {elapsedTime}</span>
+
+        {/* Small text check-in time display */}
+        {isCheckedIn && currentSessionStart && (
+          <div className="mt-6 flex flex-col items-center gap-1">
+            <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-6 py-2.5 rounded-full font-medium shadow-lg shadow-emerald-500/5 text-sm">
+              <Clock className="w-4 h-4" />
+              <span>Active Session • {elapsedTime}</span>
+            </div>
+            <span className="text-xs text-gray-400 tracking-wide font-medium mt-1">
+              Current Punch-In: <strong className="text-gray-200">{currentSessionStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong>
+              {firstCheckInTime && <span className="ml-2 text-gray-500">(1st Shift Punch: {firstCheckInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>}
+            </span>
           </div>
         )}
 
-        {isCheckedIn && !isOnBreak && (
-          <button
-            onClick={handleBreakPunch}
-            className="mt-6 px-6 py-3 rounded-xl font-medium border border-white/10 hover:bg-white/5 transition-all text-gray-300 flex items-center gap-2"
-          >
-            ☕ Take a Break
-          </button>
-        )}
-        {isCheckedIn && isOnBreak && (
-          <button
-            onClick={handleBreakPunch}
-            className={`mt-6 px-8 py-4 rounded-xl font-bold border transition-all ${getBreakColorClass()}`}
-          >
-            End Break • {breakElapsed}
-          </button>
+        {/* Completed Sessions Log Breakdown */}
+        {sessions.length > 0 && (
+          <div className="mt-8 glass p-6 rounded-2xl border border-white/10 max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-3">
+              <div className="flex items-center gap-2 text-white font-bold text-sm">
+                <History className="w-4 h-4 text-emerald-400" />
+                Today's Sessions ({sessions.length})
+              </div>
+              {firstCheckInTime && (
+                <span className="text-xs text-gray-400 font-medium">
+                  First Punch: <strong className="text-emerald-400">{firstCheckInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {sessions.map((s, idx) => {
+                const durSecs = Math.floor(s.durationMs / 1000);
+                const hrs = Math.floor(durSecs / 3600);
+                const mins = Math.floor((durSecs % 3600) / 60);
+                return (
+                  <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-black/20 border border-white/5 text-xs">
+                    <div className="flex items-center gap-2 text-gray-300">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Session #{idx + 1}: <strong>{s.checkIn.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong> → <strong>{s.checkOut?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></span>
+                    </div>
+                    <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      {hrs > 0 ? `${hrs}h ` : ''}{mins}m
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {renderJourneyBar()}
@@ -293,7 +350,6 @@ export function EmployeeDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* PiP Button */}
           {('documentPictureInPicture' in window) && (
             <button
               onClick={() => setIsPipActive(true)}
@@ -315,7 +371,6 @@ export function EmployeeDashboard() {
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center w-full">
-        {/* Render main UI if PiP is not active, otherwise show a placeholder */}
         {isPipActive ? (
           <div className="text-center p-12 border border-dashed border-gray-700 rounded-3xl glass opacity-60">
             <h2 className="text-xl font-medium mb-2">Widget is Active</h2>
@@ -326,7 +381,6 @@ export function EmployeeDashboard() {
         )}
       </div>
 
-      {/* Floating Action Button for Leave */}
       <button
         onClick={() => setIsLeaveModalOpen(true)}
         className="fixed bottom-24 md:bottom-8 right-4 md:right-8 bg-surface border border-white/10 hover:bg-white/10 text-white p-4 rounded-2xl shadow-xl transition-all flex items-center gap-3 group"
