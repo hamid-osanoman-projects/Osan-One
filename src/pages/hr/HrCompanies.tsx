@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Users, MoreVertical, LayoutGrid, List } from 'lucide-react';
+import { Building2, Users, MoreVertical, LayoutGrid, List, Shield } from 'lucide-react';
 import { CompanyFormModal } from '../../components/hr/CompanyFormModal';
 import { MOCK_COMPANIES, type CompanyData } from './mockData';
 
@@ -52,6 +52,12 @@ export function HrCompanies() {
       'from-indigo-500/20 to-cyan-500/20 border-indigo-500/30 text-indigo-400',
     ];
     return gradients[company.name.length % gradients.length];
+  };
+
+  const getPolicyLabel = (policy?: string) => {
+    if (policy === 'email') return 'Email Only';
+    if (policy === 'phone') return 'Phone & PIN';
+    return 'Hybrid Auth';
   };
 
   const getInitials = (name: string) => {
@@ -116,6 +122,10 @@ export function HrCompanies() {
                   </div>
 
                   <h3 className="text-base font-bold text-white mb-0.5 truncate" title={company.name}>{company.name}</h3>
+                  <div className="flex items-center gap-1.5 text-[10px] bg-white/5 border border-white/10 px-2.5 py-0.5 rounded-full text-gray-300 w-max mb-3">
+                    <Shield className="w-3 h-3 text-primary" />
+                    <span>{getPolicyLabel(company.authPolicy)}</span>
+                  </div>
                   <p className="text-xs text-gray-400 mb-4 border-b border-white/10 pb-3 truncate" title={company.location || 'Headquarters'}>
                     {company.location || 'Headquarters'}
                   </p>
@@ -149,6 +159,7 @@ export function HrCompanies() {
               <tr className="bg-white/5 border-b border-white/10 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                 <th className="p-4 pl-6">Company Entity</th>
                 <th className="p-4">Location</th>
+                <th className="p-4">Login Policy</th>
                 <th className="p-4">Total Staff</th>
                 <th className="p-4 pr-6 text-right">Actions</th>
               </tr>
@@ -176,6 +187,12 @@ export function HrCompanies() {
                       </div>
                     </td>
                     <td className="p-4 text-gray-400 text-sm">{company.location || 'Headquarters'}</td>
+                    <td className="p-4">
+                      <span className="inline-flex items-center gap-1.5 text-xs text-gray-300 bg-white/5 border border-white/10 px-2.5 py-1 rounded-full">
+                        <Shield className="w-3.5 h-3.5 text-primary" />
+                        {getPolicyLabel(company.authPolicy)}
+                      </span>
+                    </td>
                     <td className="p-4">
                       <div className="inline-flex items-center gap-2 bg-white/5 px-3 py-1 rounded-lg">
                         <Users className={`w-4 h-4 ${textColor}`} />

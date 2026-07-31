@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { MapPin, Globe, Loader2, Save } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getCompanySettings, updateCompanySettings, type CompanySettings } from '../../lib/settings';
+import { getCompanySettings, updateCompanySettings } from '../../lib/settings';
 
 export function HrOffice() {
   const { profile } = useAuth();
-  const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [isFetchingIp, setIsFetchingIp] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -23,7 +22,6 @@ export function HrOffice() {
     if (!profile?.company_id) return;
     const data = await getCompanySettings(profile.company_id);
     if (data) {
-      setSettings(data);
       setLat(data.office_latitude?.toString() || '');
       setLng(data.office_longitude?.toString() || '');
       setIp(data.office_ip || '');

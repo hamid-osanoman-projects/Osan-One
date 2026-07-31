@@ -1,4 +1,4 @@
-import type { CompanyName, Role, Nationality, UserStatus } from '../../types';
+import type { Role, Nationality, UserStatus, AuthPolicy } from '../../types';
 
 export interface CompanyData {
   name: string;
@@ -7,22 +7,25 @@ export interface CompanyData {
   contactEmail?: string;
   theme?: string;
   logoUrl?: string;
+  authPolicy?: AuthPolicy;
 }
 
 export const MOCK_COMPANIES: CompanyData[] = [
-  { name: 'Nameer', count: 12, location: 'Muscat, Oman', theme: 'emerald' },
-  { name: 'Masar', count: 8, location: 'Dubai, UAE', theme: 'blue' },
-  { name: 'Osan Studio', count: 15, location: 'Muscat, Oman', theme: 'indigo' },
-  { name: 'Amer', count: 5, location: 'Doha, Qatar', theme: 'amber' },
-  { name: 'Asas', count: 9, location: 'Riyadh, KSA', theme: 'rose' },
-  { name: 'Musk', count: 4, location: 'Muscat, Oman', theme: 'emerald' },
-  { name: 'Osbic', count: 6, location: 'Manama, Bahrain', theme: 'blue' },
-  { name: 'Maisarah', count: 3, location: 'Kuwait City, Kuwait', theme: 'amber' },
+  { name: 'Nameer', count: 12, location: 'Muscat, Oman', theme: 'emerald', authPolicy: 'both' },
+  { name: 'Masar', count: 8, location: 'Dubai, UAE', theme: 'blue', authPolicy: 'phone' },
+  { name: 'Osan Studio', count: 15, location: 'Muscat, Oman', theme: 'indigo', authPolicy: 'email' },
+  { name: 'Amer', count: 5, location: 'Doha, Qatar', theme: 'amber', authPolicy: 'both' },
+  { name: 'Asas', count: 9, location: 'Riyadh, KSA', theme: 'rose', authPolicy: 'phone' },
+  { name: 'Musk', count: 4, location: 'Muscat, Oman', theme: 'emerald', authPolicy: 'email' },
+  { name: 'Osbic', count: 6, location: 'Manama, Bahrain', theme: 'blue', authPolicy: 'both' },
+  { name: 'Maisarah', count: 3, location: 'Kuwait City, Kuwait', theme: 'amber', authPolicy: 'phone' },
 ];
 
 export const MOCK_EMPLOYEES = Array.from({ length: 12 }).map((_, i) => ({
   id: `emp-${i}`,
   name: `Employee ${i + 1}`,
+  email: `employee${i + 1}@${MOCK_COMPANIES[i % 8].name.toLowerCase().replace(/\s+/g, '')}.com`,
+  phone: `96891234${(10 + i).toString()}`,
   role: (i === 0 ? 'Super_HR' : i === 1 ? 'CEO' : i === 2 ? 'Accountant' : 'Employee') as Role,
   company: MOCK_COMPANIES[i % 8].name,
   nationality: (i % 3 === 0 ? 'Expat' : 'Omani') as Nationality,

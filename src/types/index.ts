@@ -5,11 +5,13 @@ export type AttendanceStatus = 'Present' | 'Late' | 'On-Time' | 'Overtime' | 'Ab
 export type LeaveStatus = 'Pending' | 'Approved' | 'Rejected';
 export type LeaveType = 'Yearly' | 'Sick' | 'Pregnancy' | 'Unpaid';
 export type CompanyName = string;
+export type AuthPolicy = 'email' | 'phone' | 'both';
 
 export interface Company {
   id: string;
   name: CompanyName;
   created_at: string;
+  auth_policy: AuthPolicy;
 }
 
 export interface LeaveBalances {
@@ -22,6 +24,7 @@ export interface User {
   id: string; // matches auth.users.id
   name: string;
   email: string;
+  phone?: string;
   role: Role;
   company_id: string;
   nationality: Nationality;

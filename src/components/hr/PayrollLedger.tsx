@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Download, Filter, FileSpreadsheet, Users, AlertCircle, Clock, Lock, CheckCircle2, Wallet, Printer, Plus, History, X, Building2 } from 'lucide-react';
+import { Download, Filter, FileSpreadsheet, Users, Lock, CheckCircle2, Wallet, Printer, Plus, History, X, Building2 } from 'lucide-react';
 import { MOCK_EMPLOYEES, MOCK_EXCEPTIONS } from '../../pages/hr/mockData';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];

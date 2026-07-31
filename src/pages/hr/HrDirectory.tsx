@@ -18,6 +18,8 @@ export function HrDirectory() {
     const newEmp = {
       id: `emp-${employees.length + 1}`,
       name: data.name,
+      email: data.email || `employee${employees.length + 1}@company.com`,
+      phone: data.phone || `96891234${10 + employees.length}`,
       role: data.role,
       company: data.company,
       nationality: data.nationality,

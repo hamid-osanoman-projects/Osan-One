@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Building2, Loader2, Upload, MapPin, Mail, Palette } from 'lucide-react';
+import { X, Building2, Loader2, Upload, MapPin, Mail, Palette, Shield } from 'lucide-react';
 import type { CompanyData } from '../../pages/hr/mockData';
+import type { AuthPolicy } from '../../types';
 
 interface CompanyFormModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export function CompanyFormModal({ isOpen, onClose, onSave, initialData }: Compa
   const [contactEmail, setContactEmail] = useState('');
   const [theme, setTheme] = useState('emerald');
   const [logoUrl, setLogoUrl] = useState('');
+  const [authPolicy, setAuthPolicy] = useState<AuthPolicy>('both');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -34,12 +36,14 @@ export function CompanyFormModal({ isOpen, onClose, onSave, initialData }: Compa
         setContactEmail(initialData.contactEmail || '');
         setTheme(initialData.theme || 'emerald');
         setLogoUrl(initialData.logoUrl || '');
+        setAuthPolicy(initialData.authPolicy || 'both');
       } else {
         setName('');
         setLocation('');
         setContactEmail('');
         setTheme('emerald');
         setLogoUrl('');
+        setAuthPolicy('both');
       }
     }
   }, [isOpen, initialData]);
@@ -65,7 +69,8 @@ export function CompanyFormModal({ isOpen, onClose, onSave, initialData }: Compa
         location: location.trim(),
         contactEmail: contactEmail.trim(),
         theme,
-        logoUrl
+        logoUrl,
+        authPolicy
       });
       onClose();
     } catch (error) {
@@ -168,6 +173,22 @@ export function CompanyFormModal({ isOpen, onClose, onSave, initialData }: Compa
                 className="w-full bg-background/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
               />
             </div>
+          </div>
+
+          {/* Authentication Policy */}
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+              <Shield className="w-4 h-4 text-primary" /> Authentication Policy
+            </label>
+            <select
+              value={authPolicy}
+              onChange={(e) => setAuthPolicy(e.target.value as AuthPolicy)}
+              className="w-full bg-background/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all appearance-none"
+            >
+              <option value="both" className="bg-slate-900 text-white">Allow Both (Email & Phone Number)</option>
+              <option value="email" className="bg-slate-900 text-white">Email & Google Auth Only</option>
+              <option value="phone" className="bg-slate-900 text-white">Phone Number & PIN Only</option>
+            </select>
           </div>
 
           {/* Theme Selection */}

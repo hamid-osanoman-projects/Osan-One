@@ -1,7 +1,7 @@
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
-  BarChart, Bar, Legend
+  BarChart, Bar
 } from 'recharts';
 import { Users, Building2, CalendarX, AlertCircle, Activity, CheckCircle2 } from 'lucide-react';
 import { MOCK_COMPANIES, MOCK_EMPLOYEES, MOCK_LEAVES, MOCK_EXCEPTIONS } from './mockData';
@@ -164,7 +164,7 @@ export function HrOverview() {
                   dataKey="count"
                   stroke="none"
                 >
-                  {MOCK_COMPANIES.map((entry, index) => (
+                  {MOCK_COMPANIES.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={companyColors[index % companyColors.length]} />
                   ))}
                 </Pie>
@@ -196,7 +196,7 @@ export function HrOverview() {
                 <YAxis dataKey="name" type="category" stroke="#ffffff50" tick={{ fill: '#ffffff90', fontSize: 13 }} axisLine={false} tickLine={false} width={100} />
                 <Tooltip cursor={{ fill: '#ffffff05' }} contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }} />
                 <Bar dataKey="count" name="Employees" fill="#3b82f6" radius={[0, 4, 4, 0]}>
-                  {demographicsData.map((entry, index) => (
+                  {demographicsData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={companyColors[index % companyColors.length]} />
                   ))}
                 </Bar>

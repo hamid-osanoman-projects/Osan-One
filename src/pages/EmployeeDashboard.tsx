@@ -33,9 +33,6 @@ export function EmployeeDashboard() {
   const [settings, setSettings] = useState<CompanySettings | null>(null);
 
   const [companyName, setCompanyName] = useState<string>('');
-  const [isOnBreak, setIsOnBreak] = useState(false);
-  const [breakStartTime, setBreakStartTime] = useState<Date | null>(null);
-  const [breakElapsed, setBreakElapsed] = useState('00:00');
 
   useEffect(() => {
     if (profile?.company_id) {
@@ -95,20 +92,7 @@ export function EmployeeDashboard() {
     return result;
   }, [cumulativeWorkedMs]);
 
-  useEffect(() => {
-    if (!isOnBreak || !breakStartTime) {
-      setBreakElapsed('00:00');
-      return;
-    }
-    const interval = setInterval(() => {
-      const diffInSeconds = Math.floor((new Date().getTime() - breakStartTime.getTime()) / 1000);
-      const hours = Math.floor(diffInSeconds / 3600);
-      const minutes = Math.floor((diffInSeconds % 3600) / 60);
-      const seconds = diffInSeconds % 60;
-      setBreakElapsed(`${hours > 0 ? hours + ':' : ''}${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isOnBreak, breakStartTime]);
+
 
   const handlePunch = async () => {
     if (!isCheckedIn && settings) {
@@ -200,23 +184,7 @@ export function EmployeeDashboard() {
 
   const disabledMessage = null;
 
-  const handleBreakPunch = () => {
-    if (!isOnBreak) {
-      setBreakStartTime(new Date());
-    } else {
-      setBreakStartTime(null);
-    }
-    setIsOnBreak(!isOnBreak);
-  };
 
-  const getBreakColorClass = () => {
-    if (!isOnBreak || !breakStartTime) return 'text-white bg-surface';
-    const diffMins = Math.floor((new Date().getTime() - breakStartTime.getTime()) / 60000);
-    if (diffMins < 45) return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10';
-    if (diffMins <= 60) return 'text-amber-400 border-amber-500/30 bg-amber-500/10';
-    if (diffMins <= 75) return 'text-orange-400 border-orange-500/30 bg-orange-500/10';
-    return 'text-red-400 border-red-500/30 bg-red-500/10 animate-pulse';
-  };
 
   const renderJourneyBar = () => {
     if (!profile) return null;

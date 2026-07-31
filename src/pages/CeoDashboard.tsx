@@ -66,13 +66,7 @@ export function CeoDashboard() {
   const totalLateMinutes = MOCK_COMPANIES.reduce((acc, c) => acc + c.lateMinutes, 0);
   const estimatedLostHours = (totalLateMinutes / 60).toFixed(1);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Active': return 'bg-emerald-500';
-      case 'On Break': return 'bg-amber-500';
-      default: return 'bg-gray-500';
-    }
-  };
+
 
   return (
     <DashboardLayout title="Executive Board">
@@ -170,7 +164,7 @@ export function CeoDashboard() {
                 <YAxis stroke="#ffffff50" tick={{ fill: '#ffffff50', fontSize: 12 }} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: '#ffffff05' }} content={<CustomTooltip />} />
                 <Bar dataKey="lateMinutes" name="Late Minutes" radius={[4, 4, 0, 0]}>
-                  {MOCK_COMPANIES.map((entry, index) => (
+                  {MOCK_COMPANIES.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={companyColors[index % companyColors.length]} />
                   ))}
                 </Bar>

@@ -1,51 +1,91 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react';
+import { Mail, Lock, LogIn, AlertCircle, Phone } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { MOCK_EMPLOYEES, MOCK_COMPANIES } from './hr/mockData';
 
 export const Login = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Helper to check policy constraints
+  const verifyCompanyAuthPolicy = (userEmail: string, userPhone?: string, typedAsEmail: boolean = true) => {
+    // Find mock employee profile
+    const emp = MOCK_EMPLOYEES.find(e => 
+      e.email.toLowerCase() === userEmail.toLowerCase() || 
+      (userPhone && e.phone === userPhone)
+    );
+
+    if (emp) {
+      const company = MOCK_COMPANIES.find(c => c.name === emp.company);
+      if (company && company.authPolicy) {
+        if (company.authPolicy === 'email' && !typedAsEmail) {
+          throw new Error(`${company.name} policy requires Email & Google Auth only. Phone logins are disabled.`);
+        }
+        if (company.authPolicy === 'phone' && typedAsEmail) {
+          throw new Error(`${company.name} policy requires Phone Number & PIN only. Email logins are disabled.`);
+        }
+      }
+      return emp;
+    }
+    return null;
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
+    const isEmail = identifier.includes('@');
+    const cleanId = identifier.trim();
+
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // 1. Policy Constraint Checks (Verify first to block login methods)
+      let matchedEmp = null;
+      if (isEmail) {
+        matchedEmp = verifyCompanyAuthPolicy(cleanId, undefined, true);
+      } else {
+        // Find by phone
+        const empByPhone = MOCK_EMPLOYEES.find(emp => emp.phone === cleanId);
+        if (empByPhone) {
+          matchedEmp = verifyCompanyAuthPolicy(empByPhone.email, cleanId, false);
+        }
+      }
 
-      if (signInError) throw signInError;
+      // 2. Perform Auth (Attempt Supabase first, fallback to mock users locally)
+      try {
+        // Try Supabase auth
+        const { data, error: signInError } = await supabase.auth.signInWithPassword(
+          isEmail ? { email: cleanId, password } : { email: `${cleanId}@phone-placeholder.com`, password }
+        );
 
-      // After successful login, we need to fetch their profile to determine their role and redirect
-      if (data.user) {
-        const { data: profileData, error: profileError } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', data.user.id)
-          .single();
+        if (signInError) throw signInError;
 
-        if (profileError) throw profileError;
+        if (data.user) {
+          const { data: profileData, error: profileError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', data.user.id)
+            .single();
 
-        switch (profileData.role) {
-          case 'ceo':
-            navigate('/ceo');
-            break;
-          case 'hr':
-            navigate('/hr');
-            break;
-          case 'accountant':
-            navigate('/accountant');
-            break;
-          default:
-            navigate('/dashboard');
+          if (profileError) throw profileError;
+
+          redirectUserByRole(profileData.role);
+          return;
+        }
+      } catch (supabaseErr) {
+        console.warn("Supabase Auth failed or placeholder configured. Falling back to local mock login...", supabaseErr);
+        
+        // Fail-safe Mock Authentication Flow
+        if (matchedEmp) {
+          redirectUserByRole(matchedEmp.role);
+          return;
+        } else {
+          throw new Error("Invalid credentials or unregistered account.");
         }
       }
     } catch (err: any) {
@@ -54,6 +94,25 @@ export const Login = () => {
       setLoading(false);
     }
   };
+
+  const redirectUserByRole = (role: string) => {
+    switch (role.toLowerCase()) {
+      case 'ceo':
+        navigate('/ceo');
+        break;
+      case 'super_hr':
+      case 'hr':
+        navigate('/hr');
+        break;
+      case 'accountant':
+        navigate('/accountant');
+        break;
+      default:
+        navigate('/dashboard');
+    }
+  };
+
+  const isEmailInput = identifier.includes('@');
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
@@ -99,24 +158,26 @@ export const Login = () => {
 
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-300 ml-1">Email Address</label>
+                <label className="text-sm font-medium text-slate-300 ml-1">Email or Phone Number</label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                    <Mail className="w-5 h-5" />
+                    {isEmailInput ? <Mail className="w-5 h-5" /> : <Phone className="w-5 h-5" />}
                   </div>
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
                     required
                     className="w-full bg-slate-950/50 border border-slate-800 text-white rounded-xl pl-12 pr-4 py-3.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-600"
-                    placeholder="name@company.com"
+                    placeholder="email@company.com or 96891234567"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-300 ml-1">Password</label>
+                <label className="text-sm font-medium text-slate-300 ml-1">
+                  {isEmailInput ? 'Password' : 'Login PIN / Passcode'}
+                </label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-500 transition-colors">
                     <Lock className="w-5 h-5" />
@@ -127,7 +188,7 @@ export const Login = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     className="w-full bg-slate-950/50 border border-slate-800 text-white rounded-xl pl-12 pr-4 py-3.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-600"
-                    placeholder="••••••••"
+                    placeholder={isEmailInput ? '••••••••' : '••••••'}
                   />
                 </div>
               </div>

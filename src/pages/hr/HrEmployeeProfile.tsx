@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Mail, Phone, Calendar, Clock, AlertCircle, FileText, Download } from 'lucide-react';
+import { ArrowLeft, MapPin, Mail, Calendar, Clock, FileText, Download } from 'lucide-react';
 import { MOCK_EMPLOYEES, MOCK_LEAVES } from './mockData';
 
 type TabType = 'attendance' | 'leaves' | 'profile';
